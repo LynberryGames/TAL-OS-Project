@@ -1,53 +1,54 @@
 ﻿using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.UI;
 
 public class DeskInteractionController : MonoBehaviour
 {
     public enum State { Idle, Held, Inspect }
 
-    [Header("PS1 View (RenderTexture on UI RawImage)")]
-    [SerializeField] private Camera renderCam;     // camera rendering the 512x288 RT
-    [SerializeField] private RawImage rawImage;    // UI that displays the RT
-
     [Header("Scene")]
     [SerializeField] private Transform deskTop;            // Empty transform at desk surface height
     [SerializeField] private Transform holdAnchor;         // Empty child of camera (e.g., 0,0.05,0.2)
-    [SerializeField] private LayerMask interactableMask;   // Only your interactable layer(s)
+    [SerializeField] private LayerMask interactableMask;   // Only your "Interactable" layer
 
     [Header("Held (on desk)")]
-    [SerializeField] private float deskFloatHeight = 0.08f;
+    [SerializeField] private float deskFloatHeight = 0.08f;  // meters above desk
     [SerializeField] private float followSmooth = 18f;
-    [SerializeField] private float rotateSpeedDeg = 120f;  // Q/E
+    [SerializeField] private float rotateSpeedDeg = 120f;   // Q/E
 
     [Header("Inspect (zoom)")]
-    [SerializeField] private float inspectDistance = 0.5f;
+    [SerializeField] private float inspectDistance = 0.5f;   // meters from camera
     [SerializeField] private float inspectPosSmooth = 18f;
     [SerializeField] private float inspectRotSmooth = 14f;
 
     [Header("Quality of life")]
-    [SerializeField] private float freezeAfterInspect = 0.15f;
+    [SerializeField] private float freezeAfterInspect = 0.15f; // pause follow after exiting Inspect
 
     private State _state = State.Idle;
+    private Camera _cam;
     private Holdable _hover;
     private Holdable _held;
     private float _deskY;
     private float _yaw;
-    private float _pitch;
+    private float _pitch; // up/down rotation when inspecting
 
     private float _resumeFollowTime;
-    private Vector3 _heldDeskPos;
+    private Vector3 _heldDeskPos;     // where it sits on the desk (XZ maintained)
 
-    private Quaternion _heldBaseRot;
-    private Quaternion _inspectRot;
+    private Quaternion _heldBaseRot;     // rotation when we first picked it up
+    private Quaternion _inspectBaseRot;  // rotation when we entered Inspect
+    private Quaternion _inspectRot; // accumulated rotation while in Inspect
+
+
+    void Awake()
+    {
+        _cam = Camera.main ?? GetComponent<Camera>();
+        if (_cam == null) Debug.LogError("DeskInteractionController: no Camera found.");
+    }
 
     void Start()
     {
-        if (renderCam == null) Debug.LogError("Assign RenderCam (camera that renders to the RenderTexture).");
-        if (rawImage == null) Debug.LogError("Assign RawImage (shows the RenderTexture).");
-        if (deskTop == null) Debug.LogError("Assign deskTop Transform at your desk surface.");
-        if (holdAnchor == null) Debug.LogError("Assign holdAnchor (child of RenderCam).");
-
+        if (deskTop == null) Debug.LogError("Assign 'deskTop' Transform at your desk surface.");
+        if (holdAnchor == null) Debug.LogError("Assign 'holdAnchor' (child of camera).");
         _deskY = (deskTop != null) ? deskTop.position.y : 0f;
     }
 
@@ -55,13 +56,12 @@ public class DeskInteractionController : MonoBehaviour
     {
         var mouse = Mouse.current;
         var kb = Keyboard.current;
-        if (mouse == null || renderCam == null || rawImage == null) return;
+        if (_cam == null || mouse == null) return;
 
-        // --- Hover detection (only while Idle)
+        // --- Hover detection (only while not holding/inspecting)
         if (_state == State.Idle)
         {
-            if (!TryGetRay(out Ray ray)) return;
-
+            Ray ray = _cam.ScreenPointToRay(mouse.position.ReadValue());
             if (Physics.Raycast(ray, out RaycastHit hit, 10f, interactableMask))
             {
                 var h = hit.collider.GetComponent<Holdable>();
@@ -70,8 +70,6 @@ public class DeskInteractionController : MonoBehaviour
                     if (_hover) _hover.HoverExit();
                     if (h && !h.IsHeld) h.HoverEnter();
                     _hover = h;
-
-                    CursorManager.Instance?.SetHover();
                 }
 
                 if (mouse.leftButton.wasPressedThisFrame && h != null)
@@ -80,83 +78,68 @@ public class DeskInteractionController : MonoBehaviour
                     return;
                 }
             }
-            else
+            else if (_hover)
             {
-                if (_hover) _hover.HoverExit();
+                _hover.HoverExit();
                 _hover = null;
-                CursorManager.Instance?.SetDefault();
             }
         }
 
+        // --- State machine
         switch (_state)
         {
-            case State.Held: HeldUpdate(mouse, kb); break;
-            case State.Inspect: InspectUpdate(mouse, kb); break;
+            case State.Held:
+                HeldUpdate(mouse, kb);
+                break;
+
+            case State.Inspect:
+                InspectUpdate(mouse, kb);
+                break;
+
+            case State.Idle:
+            default:
+                break;
         }
     }
 
-    bool TryGetRay(out Ray ray)
-    {
-        ray = default;
-
-        Vector2 screenMouse = Mouse.current.position.ReadValue();
-        RectTransform rt = rawImage.rectTransform;
-
-        Canvas canvas = rawImage.canvas;
-        Camera uiCam = (canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay)
-            ? canvas.worldCamera
-            : null;
-
-        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(rt, screenMouse, uiCam, out Vector2 local))
-            return false;
-
-        Rect rect = rt.rect;
-        float u = (local.x - rect.xMin) / rect.width;
-        float v = (local.y - rect.yMin) / rect.height;
-
-        // Only interact when mouse is over the PS1 view
-        if (u < 0f || u > 1f || v < 0f || v > 1f) return false;
-
-        float px = u * renderCam.pixelWidth;
-        float py = v * renderCam.pixelHeight;
-
-        ray = renderCam.ScreenPointToRay(new Vector3(px, py, 0f));
-        return true;
-    }
-
+    // ---------- State handlers ----------
     void BeginHold(Holdable h)
     {
         _held = h;
         _held.BeginHold();
         _state = State.Held;
 
-        CursorManager.Instance?.SetHold();
-
         _heldDeskPos = new Vector3(_held.transform.position.x, _deskY, _held.transform.position.z);
 
-        _heldBaseRot = _held.transform.rotation;
-        _yaw = 0f;
+        _heldBaseRot = _held.transform.rotation;  // <— remember current rotation
+        _yaw = 0f;                                 // we’ll add yaw on top of the base
         _pitch = 0f;
     }
 
+
     void HeldUpdate(Mouse mouse, Keyboard kb)
     {
-        // Rotate Q/E
+        // Rotate (Q/E)
         float spin = 0f;
         if (kb != null)
         {
             if (kb.qKey.isPressed) spin -= 1f;
             if (kb.eKey.isPressed) spin += 1f;
 
-            // Inspect toggle (R)
+            // Toggle Inspect (R)
             if (kb.rKey.wasPressedThisFrame)
             {
-                _inspectRot = _held.transform.rotation;
+                _inspectRot = _held.transform.rotation; // seed accumulated rotation
                 _state = State.Inspect;
-                CursorManager.Instance?.SetInspect();
-                _resumeFollowTime = Time.time + freezeAfterInspect;
+                _resumeFollowTime = Time.time + freezeAfterInspect; // if you still use it later
                 return;
             }
+
+
+
+
+
+
         }
         _yaw += spin * rotateSpeedDeg * Time.deltaTime;
 
@@ -166,43 +149,44 @@ public class DeskInteractionController : MonoBehaviour
             _held.DropWithPhysics();
             _held = null;
             _state = State.Idle;
-            CursorManager.Instance?.SetDefault();
             return;
         }
 
-        // Move along desk plane using PS1-view ray
-        if (TryGetRay(out Ray ray))
+        // Move along desk plane (XZ from mouse, Y fixed to desk top + float)
+        Ray ray = _cam.ScreenPointToRay(mouse.position.ReadValue());
+        float t;
+        // Plane: y = _deskY
+        if (new Plane(Vector3.up, new Vector3(0f, _deskY, 0f)).Raycast(ray, out t))
         {
-            if (new Plane(Vector3.up, new Vector3(0f, _deskY, 0f)).Raycast(ray, out float t))
-            {
-                Vector3 hit = ray.GetPoint(t);
-                _heldDeskPos = new Vector3(hit.x, _deskY, hit.z);
-            }
+            Vector3 hit = ray.GetPoint(t);
+            _heldDeskPos = new Vector3(hit.x, _deskY, hit.z);
         }
 
         Vector3 targetPos = new Vector3(_heldDeskPos.x, _deskY + deskFloatHeight, _heldDeskPos.z);
         _held.transform.position = Vector3.Lerp(_held.transform.position, targetPos, Time.deltaTime * followSmooth);
 
         Quaternion yawRot = Quaternion.AngleAxis(_yaw, Vector3.up);
-        Quaternion targetRot = _heldBaseRot * yawRot;
+        Quaternion targetRot = _heldBaseRot * yawRot;              // rotate relative to the pickup rotation
         _held.transform.rotation = Quaternion.Slerp(_held.transform.rotation, targetRot, Time.deltaTime * followSmooth);
+
     }
 
     void InspectUpdate(Mouse mouse, Keyboard kb)
     {
-        if (renderCam == null || _held == null) return;
+        if (_cam == null || _held == null) return;
 
-        // Back to Held (R)
+        // Toggle back to Held (R)
         if (kb != null && kb.rKey.wasPressedThisFrame)
         {
+            // carry rotation back to Held so it keeps what player set
             _heldBaseRot = _held.transform.rotation;
-            _yaw = 0f;
+            _yaw = 0f;                // held yaw starts fresh, relative to current
             _state = State.Held;
-            CursorManager.Instance?.SetHold();
             _resumeFollowTime = Time.time + freezeAfterInspect;
             return;
         }
 
+        // --- rotation while Inspect (unlimited: Q/E yaw, W/S pitch) ---
         float yawSpin = 0f, pitchSpin = 0f;
         if (kb != null)
         {
@@ -215,19 +199,29 @@ public class DeskInteractionController : MonoBehaviour
         float yawDelta = yawSpin * rotateSpeedDeg * Time.deltaTime;
         float pitchDelta = pitchSpin * rotateSpeedDeg * Time.deltaTime;
 
+        // Accumulate rotation (no clamps → full 360s)
         Quaternion delta = Quaternion.Euler(pitchDelta, yawDelta, 0f);
         _inspectRot = delta * _inspectRot;
 
+        // --- position in front of camera (bring it closer) ---
         Vector3 anchorOffset = (holdAnchor != null)
-            ? renderCam.transform.TransformVector(holdAnchor.localPosition)
+            ? _cam.transform.TransformVector(holdAnchor.localPosition)
             : Vector3.zero;
 
-        Vector3 targetPos = renderCam.transform.position
-                            + renderCam.transform.forward * inspectDistance
+        Vector3 targetPos = _cam.transform.position
+                            + _cam.transform.forward * inspectDistance
                             + anchorOffset;
 
-        _held.transform.position = Vector3.Lerp(_held.transform.position, targetPos, Time.deltaTime * inspectPosSmooth);
+        _held.transform.position = Vector3.Lerp(
+            _held.transform.position, targetPos, Time.deltaTime * inspectPosSmooth
+        );
 
-        _held.transform.rotation = Quaternion.Slerp(_held.transform.rotation, _inspectRot, Time.deltaTime * inspectRotSmooth);
+        // --- apply rotation ---
+        _held.transform.rotation = Quaternion.Slerp(
+            _held.transform.rotation, _inspectRot, Time.deltaTime * inspectRotSmooth
+        );
     }
+
+
 }
+
