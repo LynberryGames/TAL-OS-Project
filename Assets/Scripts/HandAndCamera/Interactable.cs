@@ -27,6 +27,15 @@ public class Interactable : MonoBehaviour
     /// The transform we actually rotate/position during Inspect.
     public Transform Visual => visualRoot != null ? visualRoot : transform;
 
+    // NEW: the “upright / authored” rotation we snap back to on grab / leaving inspect
+    public Quaternion DefaultRotation { get; private set; }
+
+    void Awake()
+    {
+        // Whatever rotation you authored in the prefab/scene becomes the default.
+        DefaultRotation = Visual.rotation;
+    }
+
     /// Helper to get a sensible size for zoom distances.
     public float GetApproxSize()
     {
