@@ -1,8 +1,14 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+
 public class DeskInteractor : MonoBehaviour
 {
+
+    public AudioController audioController;
+
+
+
     [Header("References")]
     public Camera cam;
     public Transform deskTop;               // empty transform placed at desk height
@@ -236,6 +242,8 @@ public class DeskInteractor : MonoBehaviour
 
         // Visual press
         btn.PressVisual();
+
+        audioController.PlayButton();
 
         // Action
         if (btn.ButtonType == DeskButtons.Type.Green)

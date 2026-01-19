@@ -82,7 +82,7 @@ public class IDCardGenerator : MonoBehaviour
         string serial = GenerateSerial(prefix);
 
         // ----- FAULT: EXPIRED (15%) -----
-        if (Random.value < 0.80f)
+        if (Random.value < 0.15f)
         {
 
             madeExpired = true;

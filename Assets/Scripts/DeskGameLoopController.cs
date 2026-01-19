@@ -5,6 +5,9 @@ using TMPro;
 
 public class DeskGameLoopController : MonoBehaviour
 {
+
+    public AudioController audioController;
+
     private enum State
     {
         PlayingEnter,
@@ -70,6 +73,8 @@ public class DeskGameLoopController : MonoBehaviour
         // Temporarily ignore stopped events while stopping/resetting
         state = State.AwaitingDecision;
 
+        audioController.PlayMachineSound();
+
         SetActiveRoot(enter: true, success: false, fail: false);
         StopAllDirectors();
 
@@ -109,6 +114,7 @@ public class DeskGameLoopController : MonoBehaviour
         
         if (currentIdIsValid) AddMistake();   // you rejected a valid ID
         else AddCorrect();                    // you rejected an invalid/expired ID (correct)
+        audioController.PlayRobotDie();
 
 
         state = State.AwaitingDecision;
@@ -164,6 +170,7 @@ public class DeskGameLoopController : MonoBehaviour
 
         rb.WakeUp();
 
+        audioController.PlayEject();
         // Shoot out in the direction the mouth point is facing
         Vector3 forward = idMouthPoint.forward;
 
