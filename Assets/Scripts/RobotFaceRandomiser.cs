@@ -2,33 +2,52 @@ using UnityEngine;
 
 public class RobotFaceRandomiser : MonoBehaviour
 {
+    [Header("What to change")]
     [SerializeField] private Renderer faceRenderer;
+
+    [Header("Possible faces")]
     [SerializeField] private Texture2D[] faces;
+
+    private MaterialPropertyBlock block;
 
     public void RandomiseFace()
     {
-        if (faceRenderer == null)
-        {
-            Debug.LogWarning("RobotFaceRandomiser: faceRenderer is NULL", this);
-            return;
-        }
-
-        if (faces == null || faces.Length == 0)
-        {
-            Debug.LogWarning("RobotFaceRandomiser: faces is empty", this);
-            return;
-        }
+        if (faceRenderer == null) return;
+        if (faces == null || faces.Length == 0) return;
 
         int i = Random.Range(0, faces.Length);
-        Texture2D tex = faces[i];
 
-        // Make/ensure an instance material on THIS renderer
-        Material m = faceRenderer.material;
+        if (block == null) block = new MaterialPropertyBlock();
 
-        // Set both (covers URP + older shaders)
-        if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", tex);
-        if (m.HasProperty("_MainTex")) m.SetTexture("_MainTex", tex);
+        faceRenderer.GetPropertyBlock(block);
 
-        Debug.Log($"Randomised face to index {i} ({tex.name}) on {faceRenderer.name}", this);
+        // URP uses _BaseMap. _MainTex is a fallback for other shaders.
+        block.SetTexture("_BaseMap", faces[i]);
+        block.SetTexture("_MainTex", faces[i]);
+
+        faceRenderer.SetPropertyBlock(block);
     }
+
+    public int FaceCount
+    {
+        get { return (faces == null) ? 0 : faces.Length; }
+    }
+
+    public void SetFaceIndex(int index)
+    {
+        if (faceRenderer == null) return;
+        if (faces == null || faces.Length == 0) return;
+
+        index = Mathf.Clamp(index, 0, faces.Length - 1);
+
+        if (block == null) block = new MaterialPropertyBlock();
+
+        faceRenderer.GetPropertyBlock(block);
+        block.SetTexture("_BaseMap", faces[index]);
+        block.SetTexture("_MainTex", faces[index]);
+        faceRenderer.SetPropertyBlock(block);
+    }
+
+
+
 }

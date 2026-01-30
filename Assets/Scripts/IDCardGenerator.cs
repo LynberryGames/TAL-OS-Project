@@ -42,6 +42,14 @@ public class IDCardGenerator : MonoBehaviour
     // Fixed in-game date
     DateTime gameToday = new DateTime(2056, 11, 17);
 
+    private int forcedFaceIndex = -1;
+
+    public void SetFaceIndex(int index)
+    {
+        forcedFaceIndex = index;
+    }
+
+
     void Awake()
     {
         GenerateID();

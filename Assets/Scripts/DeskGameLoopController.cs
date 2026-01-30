@@ -78,9 +78,20 @@ public class DeskGameLoopController : MonoBehaviour
     {
         state = State.AwaitingDecision;
 
-        if (enterFace != null) enterFace.RandomiseFace();
-        if (successFace != null) successFace.RandomiseFace();
-        if (failFace != null) failFace.RandomiseFace();
+        if (enterFace != null && successFace != null && failFace != null)
+        {
+            int count = enterFace.FaceCount;
+            if (count > 0)
+            {
+                int index = Random.Range(0, count);
+
+                enterFace.SetFaceIndex(index);
+                successFace.SetFaceIndex(index);
+                failFace.SetFaceIndex(index);
+            }
+        }
+
+
 
 
         audioController.PlayMachineSound();
@@ -247,5 +258,8 @@ public class DeskGameLoopController : MonoBehaviour
         if (correctText != null) correctText.text = correct.ToString();
         if (mistakesText != null) mistakesText.text = mistakes.ToString();
     }
+
+   
+
 
 }
