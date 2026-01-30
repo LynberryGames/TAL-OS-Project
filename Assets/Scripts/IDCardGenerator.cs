@@ -26,7 +26,6 @@ public class IDCardGenerator : MonoBehaviour
         "Technician","Clerk","Inspector","Courier","Mechanic","Guard"
     };
 
-    // These two arrays are linked by index
     [SerializeField]
     string[] models =
     {
@@ -63,33 +62,26 @@ public class IDCardGenerator : MonoBehaviour
         bool madeExpired = false;
         bool madeMismatch = false;
 
-        // ----- NAME -----
         string firstName = firstNames[Random.Range(0, firstNames.Length)];
         nameText.text = firstName;
 
-        // ----- OCCUPATION -----
         string job = occupations[Random.Range(0, occupations.Length)];
         occupationText.text = job;
 
-        // ----- MODEL + PREFIX -----
         int modelIndex = Random.Range(0, models.Length);
         string model = models[modelIndex];
         string prefix = serialPrefixes[modelIndex];
 
         modelText.text = model;
 
-        // ----- ISSUED DATE -----
         int issuedDaysAgo = Random.Range(1, 365 * 5);
         DateTime issuedDate = gameToday.AddDays(-issuedDaysAgo);
 
-        // ----- EXPIRY DATE -----
         int validDays = Random.Range(365, 365 * 5);
         DateTime expiryDate = issuedDate.AddDays(validDays);
 
-        // ----- SERIAL -----
         string serial = GenerateSerial(prefix);
 
-        // ----- FAULT: EXPIRED (15%) -----
         if (Random.value < 0.15f)
         {
 
@@ -99,7 +91,6 @@ public class IDCardGenerator : MonoBehaviour
             issuedDate = expiryDate.AddDays(-Random.Range(30, 365 * 3));
         }
 
-        // ----- FAULT: SERIAL MISMATCH (15%) -----
         if (Random.value < 0.15f)
         {
 
@@ -118,7 +109,6 @@ public class IDCardGenerator : MonoBehaviour
         if (result != null)
             result.isValid = !(madeExpired || madeMismatch);
 
-        // ----- APPLY TO CARD -----
         issuedText.text = FormatDate(issuedDate);
         expiryText.text = FormatDate(expiryDate);
         serialText.text = serial;
