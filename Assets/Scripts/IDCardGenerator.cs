@@ -49,11 +49,11 @@ public class IDCardGenerator : MonoBehaviour
         forcedFaceIndex = index;
     }
 
-
-    void Awake()
+    public void Awake()
     {
         GenerateID();
     }
+
 
 
 
