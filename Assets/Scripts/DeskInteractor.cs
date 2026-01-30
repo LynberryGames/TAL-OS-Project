@@ -43,9 +43,10 @@ public class DeskInteractor : MonoBehaviour
 
     // Inspect rotation + distance
     private Quaternion inspectRot;
-    private float inspectDistance;
-    private float minInspectDistance;
-    private float maxInspectDistance;
+
+    [Header("Inspect")]
+    public float inspectDistance = 0.35f; // smaller = closer to camera
+
 
     void Start()
     {
@@ -174,15 +175,9 @@ public class DeskInteractor : MonoBehaviour
     void EnterInspect()
     {
         inspecting = true;
-
-        float size = Mathf.Max(0.0001f, held.GetApproxSize());
-
-        minInspectDistance = held.minZoomK * size;
-        maxInspectDistance = held.maxZoomK * size;
-
-        inspectDistance = Mathf.Clamp(held.defaultDistanceK * size, minInspectDistance, maxInspectDistance);
         inspectRot = held.Visual.rotation;
     }
+
 
     void ExitInspect()
     {

@@ -34,6 +34,12 @@ public class DeskGameLoopController : MonoBehaviour
     [SerializeField] private float ejectUpImpulse = 0.3f;
     [SerializeField] private float ejectSpinTorque = 0.0f;
 
+    [SerializeField] private RobotFaceRandomiser enterFace;
+    [SerializeField] private RobotFaceRandomiser successFace;
+    [SerializeField] private RobotFaceRandomiser failFace;
+
+
+
 
     [Header("Scoring")]
     [SerializeField] private TMP_Text correctText;
@@ -70,8 +76,12 @@ public class DeskGameLoopController : MonoBehaviour
 
     private void StartRound()
     {
-        // Temporarily ignore stopped events while stopping/resetting
         state = State.AwaitingDecision;
+
+        if (enterFace != null) enterFace.RandomiseFace();
+        if (successFace != null) successFace.RandomiseFace();
+        if (failFace != null) failFace.RandomiseFace();
+
 
         audioController.PlayMachineSound();
 
@@ -84,6 +94,8 @@ public class DeskGameLoopController : MonoBehaviour
         enterDirector.Play();
         state = State.PlayingEnter;
     }
+
+
 
     public void Accept()
     {
@@ -179,6 +191,28 @@ public class DeskGameLoopController : MonoBehaviour
 
         if (ejectSpinTorque != 0f)
             rb.AddTorque(Vector3.up * ejectSpinTorque, ForceMode.Impulse);
+    }
+
+
+    private void RandomiseAllRobotFaces()
+    {
+        if (enterRoot != null)
+        {
+            var r = enterRoot.GetComponentInChildren<RobotFaceRandomiser>(true);
+            if (r != null) r.RandomiseFace();
+        }
+
+        if (successRoot != null)
+        {
+            var r = successRoot.GetComponentInChildren<RobotFaceRandomiser>(true);
+            if (r != null) r.RandomiseFace();
+        }
+
+        if (failRoot != null)
+        {
+            var r = failRoot.GetComponentInChildren<RobotFaceRandomiser>(true);
+            if (r != null) r.RandomiseFace();
+        }
     }
 
 
